@@ -29,6 +29,7 @@ class TestUsers(db.Model):
     stage = db.Column(db.String())
     twitter_handle = db.Column(db.String())
     account_id = db.Column(db.String())
+    link = db.Column(db.String())
 
     def __repr__(self):
         return "(email: {}, password: {}, stage: {})"\
@@ -45,6 +46,7 @@ class User:
             self.stage = None
             self.twitter_handle = None
             self.account_id = None
+            self.link = None
             self.is_authenticated = True
             self.is_active = True
             self.is_anonymous = False
@@ -59,12 +61,12 @@ class User:
             cur.execute(
                 """
                 INSERT INTO test_users
-                    (email, password, stage, twitter_handle, account_id)
+                    (email, password, stage, twitter_handle, account_id, link)
                 VALUES
-                    (%s, %s, %s, %s, %s)
+                    (%s, %s, %s, %s, %s, %s)
                 """,
                 [self.email, self.password, self.stage,
-                 self.twitter_handle, self.account_id]
+                 self.twitter_handle, self.account_id, self.link]
             )
             # This is to prevent committing twice
             self.new_user = False
@@ -80,12 +82,13 @@ class User:
                     password = %s,
                     stage = %s,
                     twitter_handle = %s,
-                    account_id = %s
+                    account_id = %s,
+                    link = %s
                 WHERE
                     email = %s    
                 """,
-                [self.email, self.password, self.stage,
-                 self.twitter_handle, self.account_id, self.email]
+                [self.email, self.password, self.stage, self.twitter_handle,
+                 self.account_id, self.link, self.email]
             )
         conn.commit()
         conn.close()
@@ -110,6 +113,7 @@ class User:
         self.stage = user['stage']
         self.twitter_handle = user['twitter_handle']
         self.account_id = user['account_id']
+        self.link = user['link']
         self.is_authenticated = True
         self.is_active = True
         self.is_anonymous = False
