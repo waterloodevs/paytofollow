@@ -282,6 +282,18 @@ def subscription_link():
     return render_template('subscription_link.html', link=link, error=error)
 
 
+@app.route('/subscription_link/<handle>', methods=['GET', 'POST'])
+def checkout(handle):
+    error = None
+    # Get user based on handle or email or whatever
+    user = ''
+    # Get user's subscription amount
+    # Create description for checkout page based on the user
+    description = ''
+    return render_template('checkout.html', key=stripe_keys['publishable_key'],
+                           description=description, amount=user.amount, error=error)
+
+
 @app.route('/dashboard', methods=['GET'])
 @login_required
 def dashboard():
