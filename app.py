@@ -285,10 +285,12 @@ def dashboard():
     if current_user.stage != 'dashboard':
         # Render function based on the stage
         return redirect(url_for(current_user.stage))
-    # Assert user is logged in and at the correct stage
     # Build the express dashboard link
-    # return redirect(link)
-    return 'Email: {}. You made it to the dashboard!'.format(current_user.email)
+    # (generate the link on demand when the user intends to visit the dashboard)
+    account = stripe.Account.retrieve(current_user.account_id)
+    response = account.login_links.create()
+    link = response['url']
+    return 'Email: {}. You made it to our dashboard!'.format(current_user.email)
 
 
 if __name__ == '__main__':
