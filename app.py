@@ -1,12 +1,11 @@
 import stripe
 import psycopg2
 import psycopg2.extras
-from flask import Flask
-from flask import render_template
-from flask import request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for
 from flask import jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import JSON
+from flask_login import LoginManager, current_user, login_user, logout_user, login_required, UserMixin
 
 DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/postgres'
 
@@ -44,6 +43,9 @@ class User:
             self.stage = None
             self.twitter_handle = None
             self.account_id = None
+            self.is_authenticated = True
+            self.is_active = True
+            self.is_anonymous = False
         else:
             self._populate_user(email)
 
@@ -104,7 +106,23 @@ class User:
         self.stage = user['stage']
         self.twitter_handle = user['twitter_handle']
         self.account_id = user['account_id']
+        self.is_authenticated = True
+        self.is_active = True
+        self.is_anonymous = False
         conn.close()
+
+    def get_id(self):
+        return unicode(self.email)
+
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login"
+
+
+@login_manager.user_loader
+def load_user(email):
+    return User(str(email))
 
 
 @app.route('/')
@@ -122,21 +140,11 @@ def login():
         password = request.form['password']
         user = User(email)
         if user.password == password:
+            login_user(user)
             # Get the user's stage
             stage = user.stage
             # Render function based on the stage
-            if stage == 'digital_account':
-                return redirect(url_for('digital_account', email=user.email))
-            elif stage == 'express_account':
-                return redirect(url_for('express_account', email=user.email))
-            elif stage == 'subscription_setup':
-                return redirect(url_for('subscription_setup', email=user.email))
-            elif stage == 'subscription_link':
-                return redirect(url_for('subscription_link', email=user.email))
-            elif stage == 'dashboard':
-                return redirect(url_for('dashboard', email=user.email))
-            else:
-                error = 'Could not find stage of user'
+            return redirect(url_for(stage))
         else:
             error = 'Incorrect credentials. Please try again.'
     return render_template('login.html', error=error)
@@ -156,98 +164,102 @@ def signup():
         # Update the stage to digital account
         user.stage = 'digital_account'
         user.commit()
-        return redirect(url_for('digital_account', email=user.email))
+        login_user(user)
+        return redirect(url_for('digital_account'))
     return render_template('signup.html', error=error)
 
 
+@app.route("/logout", methods=['POST'])
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('root'))
+
+
 @app.route('/digital_account', methods=['GET', 'POST'])
+@login_required
 def digital_account():
-    email = request.args.get('email')
     # Assert user is logged in and at the correct stage
     error = None
     if request.method == 'POST':
         twitter_handle = request.form['twitter_handle']
-        user = User(email)
         # Save the user's digital account information
-        user.twitter_handle = twitter_handle
+        current_user.twitter_handle = twitter_handle
         # Update the user's stage to express account
-        user.stage = 'express_account'
-        user.commit()
-        return redirect(url_for('express_account', email=user.email))
-    return render_template('digital_account.html', error=error, email=email)
+        current_user.stage = 'express_account'
+        current_user.commit()
+        return redirect(url_for('express_account'))
+    return render_template('digital_account.html', error=error)
 
 
 @app.route('/express_account', methods=['GET', 'POST'])
+@login_required
 def express_account():
-    email = request.args.get('email')
     # Assert user is logged in and at the correct stage
     error = None
     if request.method == 'POST':
         if 'code' in request.args:
-            user = User(email)
             authorization_code = request.args.get('code')
             # Use the code to make a post request to the token endpoint to complete the
             # connection and fetch the user's account ID
             account = stripe.Account.retrieve(authorization_code)
             # Save the user's express account information
-            user.account_id = account['stripe_user_id']
+            current_user.account_id = account['stripe_user_id']
             # Update the user's stage to subscription setup
-            user.stage = 'subscription_setup'
-            user.commit()
-            return redirect(url_for('subscription_setup', email=user.email))
+            current_user.stage = 'subscription_setup'
+            current_user.commit()
+            return redirect(url_for('subscription_setup'))
         else:
-            CLIENT_ID = 'ca_E3RUt1fryGahQgpUOMD7eKKyObggpknk'
+            client_id = 'ca_E3RUt1fryGahQgpUOMD7eKKyObggpknk'
             redirect_uri = request.base_url
             # Build express link
             link = 'https://connect.stripe.com/express/oauth/authorize?redirect_uri={}&client_id={}'\
-                .format(redirect_uri, CLIENT_ID)
+                .format(redirect_uri, client_id)
             return redirect(link)
-    return render_template('express_account.html', error=error, email=email)
+    return render_template('express_account.html', error=error)
 
 
 @app.route('/subscription_setup', methods=['GET', 'POST'])
+@login_required
 def subscription_setup():
-    email = request.args.get('email')
     # Assert user is logged in and at the correct stage
     error = None
     if request.method == 'POST':
-        user = User(email)
         amount = request.form['amount']
         # Save the user's subscription settings
-        user.amount = amount
+        current_user.amount = amount
         # Update the user's stage to subscription link
-        user.stage = 'subscription_setup'
-        user.commit()
-        return redirect(url_for('subscription_link', email=user.email))
-    return render_template('subscription_setup.html', error=error, email=email)
+        current_user.stage = 'subscription_setup'
+        current_user.commit()
+        return redirect(url_for('subscription_link'))
+    return render_template('subscription_setup.html', error=error)
 
 
 @app.route('/subscription_link', methods=['GET', 'POST'])
+@login_required
 def subscription_link():
-    email = request.args.get('email')
     # Assert user is logged in and at the correct stage
     error = None
-    user = User(email)
     if request.method == 'POST':
         # Update the user's stage to dashboard
-        user.stage = 'dashboard'
-        user.commit()
-        return redirect(url_for('dashboard', email=user.email))
+        current_user.stage = 'dashboard'
+        current_user.commit()
+        return redirect(url_for('dashboard'))
     # Create the subscription link
     link = 'new checkout link'
     # Save the user's subscription link
-    user.link = link
-    user.commit()
-    return render_template('subscription_link.html', link=link, error=error, email=email)
+    current_user.link = link
+    current_user.commit()
+    return render_template('subscription_link.html', link=link, error=error)
 
 
 @app.route('/dashboard', methods=['GET'])
+@login_required
 def dashboard():
-    email = request.args.get('email')
     # Assert user is logged in and at the correct stage
     # Build the express dashboard link
     # return redirect(link)
-    return 'Email: {}. You made it to the dashboard!'.format(email)
+    return 'Email: {}. You made it to the dashboard!'.format(current_user.email)
 
 
 if __name__ == '__main__':
