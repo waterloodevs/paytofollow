@@ -5,7 +5,8 @@ from flask import Flask, render_template, request, redirect, url_for
 from flask import jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import JSON
-from flask_login import LoginManager, current_user, login_user, logout_user, login_required, UserMixin
+from flask_login import LoginManager, current_user, \
+    login_user, logout_user, login_required, UserMixin
 
 DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/postgres'
 
@@ -30,7 +31,8 @@ class TestUsers(db.Model):
     account_id = db.Column(db.String())
 
     def __repr__(self):
-        return "(email: {}, password: {}, stage: {})".format(self.email, self.password, self.stage)
+        return "(email: {}, password: {}, stage: {})"\
+            .format(self.email, self.password, self.stage)
 
 
 class User:
@@ -61,7 +63,8 @@ class User:
                 VALUES
                     (%s, %s, %s, %s, %s)
                 """,
-                [self.email, self.password, self.stage, self.twitter_handle, self.account_id]
+                [self.email, self.password, self.stage,
+                 self.twitter_handle, self.account_id]
             )
             # This is to prevent committing twice
             self.new_user = False
@@ -81,7 +84,8 @@ class User:
                 WHERE
                     email = %s    
                 """,
-                [self.email, self.password, self.stage, self.twitter_handle, self.account_id, self.email]
+                [self.email, self.password, self.stage,
+                 self.twitter_handle, self.account_id, self.email]
             )
         conn.commit()
         conn.close()
@@ -134,6 +138,9 @@ def root():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     # Check if the user is already logged in and take it to its stage
+    if current_user:
+        # Render function based on the stage
+        return redirect(url_for(current_user.stage))
     error = None
     if request.method == 'POST':
         email = request.form['email']
@@ -153,6 +160,9 @@ def login():
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     # Check if the user is already logged in and take it to its stage
+    if current_user:
+        # Render function based on the stage
+        return redirect(url_for(current_user.stage))
     error = None
     if request.method == 'POST':
         email = request.form['email']
@@ -179,7 +189,10 @@ def logout():
 @app.route('/digital_account', methods=['GET', 'POST'])
 @login_required
 def digital_account():
-    # Assert user is logged in and at the correct stage
+    # Check the user is at the correct stage
+    if current_user.stage != 'digital_account':
+        # Render function based on the stage
+        return redirect(url_for(current_user.stage))
     error = None
     if request.method == 'POST':
         twitter_handle = request.form['twitter_handle']
@@ -195,7 +208,10 @@ def digital_account():
 @app.route('/express_account', methods=['GET', 'POST'])
 @login_required
 def express_account():
-    # Assert user is logged in and at the correct stage
+    # Check the user is at the correct stage
+    if current_user.stage != 'express_account':
+        # Render function based on the stage
+        return redirect(url_for(current_user.stage))
     error = None
     if request.method == 'POST':
         if 'code' in request.args:
@@ -211,9 +227,12 @@ def express_account():
             return redirect(url_for('subscription_setup'))
         else:
             client_id = 'ca_E3RUt1fryGahQgpUOMD7eKKyObggpknk'
+            # TODO: submit this redirect uri to Stripe
             redirect_uri = request.base_url
             # Build express link
-            link = 'https://connect.stripe.com/express/oauth/authorize?redirect_uri={}&client_id={}'\
+            link = 'https://connect.stripe.com/express/oauth/authorize?' \
+                   'redirect_uri={}&' \
+                   'client_id={}'\
                 .format(redirect_uri, client_id)
             return redirect(link)
     return render_template('express_account.html', error=error)
@@ -222,7 +241,10 @@ def express_account():
 @app.route('/subscription_setup', methods=['GET', 'POST'])
 @login_required
 def subscription_setup():
-    # Assert user is logged in and at the correct stage
+    # Check the user is at the correct stage
+    if current_user.stage != 'subscription_setup':
+        # Render function based on the stage
+        return redirect(url_for(current_user.stage))
     error = None
     if request.method == 'POST':
         amount = request.form['amount']
@@ -238,7 +260,10 @@ def subscription_setup():
 @app.route('/subscription_link', methods=['GET', 'POST'])
 @login_required
 def subscription_link():
-    # Assert user is logged in and at the correct stage
+    # Check the user is at the correct stage
+    if current_user.stage != 'subscription_link':
+        # Render function based on the stage
+        return redirect(url_for(current_user.stage))
     error = None
     if request.method == 'POST':
         # Update the user's stage to dashboard
@@ -256,6 +281,10 @@ def subscription_link():
 @app.route('/dashboard', methods=['GET'])
 @login_required
 def dashboard():
+    # Check the user is at the correct stage
+    if current_user.stage != 'dashboard':
+        # Render function based on the stage
+        return redirect(url_for(current_user.stage))
     # Assert user is logged in and at the correct stage
     # Build the express dashboard link
     # return redirect(link)
