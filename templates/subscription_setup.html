@@ -6,14 +6,13 @@
   </head>
   <body>
     <div class="container">
-      <h1>Please login</h1>
+      <h1>Setup your subscription settings</h1>
       <br>
       <form action="" method="post">
-        <input type="text" placeholder="Username" name="email" value="{{
-          request.form.username }}">
-         <input type="password" placeholder="Password" name="password" value="{{
-          request.form.password }}">
-        <input class="btn btn-default" type="submit" value="Login">
+        <input type="number" placeholder="Amount" name="amount" value="{{
+          request.form.amount }}">
+        <input type="hidden" name="email" value={{ email }}/>
+        <input class="btn btn-default" type="submit" value="Next">
       </form>
       {% if error %}
         <p class="error"><strong>Error:</strong> {{ error }}

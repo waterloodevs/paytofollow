@@ -6,14 +6,12 @@
   </head>
   <body>
     <div class="container">
-      <h1>Please login</h1>
+      <h1>Here is your subscription link: </h1>
       <br>
+        <p>{% link %}</p>
       <form action="" method="post">
-        <input type="text" placeholder="Username" name="email" value="{{
-          request.form.username }}">
-         <input type="password" placeholder="Password" name="password" value="{{
-          request.form.password }}">
-        <input class="btn btn-default" type="submit" value="Login">
+        <input type="hidden" name="email" value={{ email }}/>
+        <input class="btn btn-default" type="submit" value="Next">
       </form>
       {% if error %}
         <p class="error"><strong>Error:</strong> {{ error }}
