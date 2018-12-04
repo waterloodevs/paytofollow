@@ -1,27 +1,40 @@
+<!DOCTYPE html>
 <html>
-  <head>
-    <title>Flask Intro - login page</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="static/bootstrap.min.css" rel="stylesheet" media="screen">
-  </head>
-  <body>
-    <div class="container">
-        <form action="/charge" method="post">
-            <article>
-                <label>
-                    <span>Amount is ${{ amount }}</span>
-                </label>
-            </article>
+<head>
+    <title>Stripe</title>
+    <style type="text/css" media="screen">
+    form article label {
+      display: block;
+      margin: 5px;
+    }
+    form .submit {
+      margin: 15px 0;
+    }
+    </style>
+</head>
+<body>
+<div class="container">
+    <form action="/charge" method="post">
+        <article>
+            <label>
+                <span>Amount is ${{ dollars }}</span>
+            </label>
+        </article>
 
-            <script src="https://checkout.stripe.com/checkout.js" class="stripe-button"
-                    data-key="{{ key }}"
-                    data-description={{ description }}
-                    data-amount={{ amount }}
-                    data-locale="auto"></script>
-        </form>
-      {% if error %}
-        <p class="error"><strong>Error:</strong> {{ error }}
-      {% endif %}
-    </div>
-  </body>
+        <script src="https://checkout.stripe.com/checkout.js" class="stripe-button"
+                data-key="{{ key }}"
+                data-name="PayToFollow"
+                data-description="{{ twitter_handle }}"
+                data-image="https://stripe.com/img/documentation/checkout/marketplace.png"
+                data-amount="{{ cents }}"
+                data-locale="auto"
+                data-allow-remember-me="false"></script>
+        <input type="hidden" name="twitter_handle" value="{{ twitter_handle }}"/>
+        <input type="hidden" name="amount" value="{{ cents }}" />
+    </form>
+    {% if error %}
+    <p class="error"><strong>Error:</strong> {{ error }}</p>
+    {% endif %}
+</div>
+</body>
 </html>

@@ -1,4 +1,6 @@
 import stripe
+import requests
+import json
 import psycopg2
 import psycopg2.extras
 from flask import Flask, render_template, request, redirect, url_for
@@ -29,6 +31,9 @@ class TestUsers(db.Model):
     stage = db.Column(db.String())
     twitter_handle = db.Column(db.String())
     account_id = db.Column(db.String())
+    amount = db.Column(db.Numeric())
+    product_id = db.Column(db.String())
+    plan_id = db.Column(db.String())
     link = db.Column(db.String())
 
     def __repr__(self):
@@ -38,14 +43,31 @@ class TestUsers(db.Model):
 
 class User:
 
-    def __init__(self, email=None):
-        self.new_user = not email
+    def __init__(self, email):
+        conn = psycopg2.connect(DATABASE_URL, sslmode=SSL_mode)
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        cur.execute(
+            """
+            SELECT 
+                *
+            FROM 
+                test_users
+            WHERE
+                email = %s
+            """,
+            [email]
+        )
+        exists = cur.rowcount > 0
+        self.new_user = not exists
         if self.new_user:
-            self.email = None
+            self.email = email
             self.password = None
             self.stage = None
             self.twitter_handle = None
             self.account_id = None
+            self.amount = 0
+            self.product_id = None
+            self.plan_id = None
             self.link = None
             self.is_authenticated = True
             self.is_active = True
@@ -61,12 +83,12 @@ class User:
             cur.execute(
                 """
                 INSERT INTO test_users
-                    (email, password, stage, twitter_handle, account_id, link)
+                    (email, password, stage, twitter_handle, account_id, amount, product_id, plan_id, link)
                 VALUES
-                    (%s, %s, %s, %s, %s, %s)
+                    (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
-                [self.email, self.password, self.stage,
-                 self.twitter_handle, self.account_id, self.link]
+                [self.email, self.password, self.stage, self.twitter_handle,
+                 self.account_id, self.amount, self.product_id, self.plan_id, self.link]
             )
             # This is to prevent committing twice
             self.new_user = False
@@ -83,12 +105,15 @@ class User:
                     stage = %s,
                     twitter_handle = %s,
                     account_id = %s,
+                    amount = %s,
+                    product_id = %s,
+                    plan_id = %s,
                     link = %s
                 WHERE
                     email = %s    
                 """,
                 [self.email, self.password, self.stage, self.twitter_handle,
-                 self.account_id, self.link, self.email]
+                 self.account_id, self.amount, self.product_id, self.plan_id, self.link, self.email]
             )
         conn.commit()
         conn.close()
@@ -113,6 +138,9 @@ class User:
         self.stage = user['stage']
         self.twitter_handle = user['twitter_handle']
         self.account_id = user['account_id']
+        self.amount = user['amount']
+        self.product_id = user['product_id']
+        self.plan_id = user['plan_id']
         self.link = user['link']
         self.is_authenticated = True
         self.is_active = True
@@ -126,11 +154,15 @@ class User:
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
+app.secret_key = '_5#y2L"F4Q8z/'
 
 
 @login_manager.user_loader
 def load_user(email):
-    return User(str(email))
+    user = User(str(email))
+    if user.new_user:
+        return None
+    return user
 
 
 @app.route('/')
@@ -142,7 +174,7 @@ def root():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     # Check if the user is already logged in and take it to its stage
-    if current_user:
+    if current_user.is_authenticated:
         # Render function based on the stage
         return redirect(url_for(current_user.stage))
     error = None
@@ -164,7 +196,7 @@ def login():
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     # Check if the user is already logged in and take it to its stage
-    if current_user:
+    if current_user.is_authenticated:
         # Render function based on the stage
         return redirect(url_for(current_user.stage))
     error = None
@@ -172,8 +204,7 @@ def signup():
         email = request.form['email']
         password = request.form['password']
         # Save the user
-        user = User()
-        user.email = email
+        user = User(email)
         user.password = password
         # Update the stage to digital account
         user.stage = 'digital_account'
@@ -212,33 +243,40 @@ def digital_account():
 @app.route('/express_account', methods=['GET', 'POST'])
 @login_required
 def express_account():
+    error = None
     # Check the user is at the correct stage
     if current_user.stage != 'express_account':
         # Render function based on the stage
         return redirect(url_for(current_user.stage))
-    error = None
     if request.method == 'POST':
-        if 'code' in request.args:
-            authorization_code = request.args.get('code')
-            # Use the code to make a post request to the token endpoint to complete the
-            # connection and fetch the user's account ID
-            account = stripe.Account.retrieve(authorization_code)
-            # Save the user's express account information
-            current_user.account_id = account['stripe_user_id']
-            # Update the user's stage to subscription setup
-            current_user.stage = 'subscription_setup'
-            current_user.commit()
-            return redirect(url_for('subscription_setup'))
-        else:
-            client_id = 'ca_E3RUt1fryGahQgpUOMD7eKKyObggpknk'
-            # TODO: submit this redirect uri to Stripe
-            redirect_uri = request.base_url
-            # Build express link
-            link = 'https://connect.stripe.com/express/oauth/authorize?' \
-                   'redirect_uri={}&' \
-                   'client_id={}'\
-                .format(redirect_uri, client_id)
-            return redirect(link)
+        client_id = 'ca_E3RUt1fryGahQgpUOMD7eKKyObggpknk'
+        # TODO: submit this redirect uri to Stripe
+        redirect_uri = request.base_url
+        # Build express link
+        link = 'https://connect.stripe.com/express/oauth/authorize?' \
+               'redirect_uri={}&' \
+               'client_id={}&' \
+               'state=12345'\
+            .format(redirect_uri, client_id)
+        return redirect(link)
+    if 'code' in request.args:
+        authorization_code = request.args.get('code')
+        # Use the code to make a post request to the token endpoint to complete the
+        # connection and fetch the user's account ID
+        url = 'https://connect.stripe.com/oauth/token'
+        payload = {
+            'client_secret': stripe_keys['secret_key'],
+            'code': authorization_code,
+            'grant_type': 'authorization_code'
+        }
+        response = requests.post(url, data=payload)
+        account = json.loads(response.content)
+        # Save the user's express account information
+        current_user.account_id = account['stripe_user_id']
+        # Update the user's stage to subscription setup
+        current_user.stage = 'subscription_setup'
+        current_user.commit()
+        return redirect(url_for('subscription_setup'))
     return render_template('express_account.html', error=error)
 
 
@@ -253,9 +291,25 @@ def subscription_setup():
     if request.method == 'POST':
         amount = request.form['amount']
         # Save the user's subscription settings
-        current_user.amount = amount
+        current_user.amount = int(amount)
         # Update the user's stage to subscription link
-        current_user.stage = 'subscription_setup'
+        current_user.stage = 'subscription_link'
+        # Setup the product and the plan
+        product = stripe.Product.create(
+            name='PTF product name',
+            type='service',
+            stripe_account=current_user.account_id
+        )
+        current_user.product_id = product['id']
+        plan = stripe.Plan.create(
+            currency='usd',
+            interval='month',
+            product=current_user.product_id,
+            nickname='Monthly Plan',
+            amount=current_user.amount*100,
+            stripe_account=current_user.account_id
+        )
+        current_user.plan_id = plan['id']
         current_user.commit()
         return redirect(url_for('subscription_link'))
     return render_template('subscription_setup.html', error=error)
@@ -275,6 +329,7 @@ def subscription_link():
         current_user.commit()
         return redirect(url_for('dashboard'))
     # Create the subscription link
+    # TODO
     link = 'new checkout link'
     # Save the user's subscription link
     current_user.link = link
@@ -282,31 +337,97 @@ def subscription_link():
     return render_template('subscription_link.html', link=link, error=error)
 
 
-@app.route('/subscription_link/<handle>', methods=['GET', 'POST'])
+@app.route('/<handle>', methods=['GET', 'POST'])
 def checkout(handle):
     error = None
-    # Get user based on handle or email or whatever
-    user = ''
+    # Get user based on handle
+    conn = psycopg2.connect(DATABASE_URL, sslmode=SSL_mode)
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    cur.execute(
+        """
+        SELECT 
+            *
+        FROM 
+            test_users
+        WHERE
+            twitter_handle = %s
+        """,
+        [handle]
+    )
+    user = cur.fetchone()
+    if not user:
+        return "This user does not exist."
+    # Convert the database information into a user object
+    user = User(user['email'])
+    conn.close()
     # Get user's subscription amount
+    dollars = user.amount
+    cents = dollars * 100
     # Create description for checkout page based on the user
-    description = ''
+    twitter_handle = user.twitter_handle
     return render_template('checkout.html', key=stripe_keys['publishable_key'],
-                           description=description, amount=user.amount, error=error)
+                           twitter_handle=twitter_handle, dollars=dollars, cents=cents, error=error)
 
 
-@app.route('/dashboard', methods=['GET'])
+@app.route('/charge', methods=['POST'])
+def charge():
+    # Amount in cents
+    email = request.form['stripeEmail']
+    amount = int(request.form['amount'])
+    stripe_token = request.form['stripeToken']
+    twitter_handle = request.form['twitter_handle']
+    conn = psycopg2.connect(DATABASE_URL, sslmode=SSL_mode)
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    cur.execute(
+        """
+        SELECT 
+            *
+        FROM 
+            test_users
+        WHERE
+            twitter_handle = %s
+        """,
+        [twitter_handle]
+    )
+    user = cur.fetchone()
+    conn.close()
+    if not user:
+        return
+    user = User(user['email'])
+    #TODO: store all customers and their subscription and which accounts they are connected to in a seperate table,
+    # they need to be able to cancel their plans
+    customer = stripe.Customer.create(
+        email=email,
+        source=stripe_token,
+        stripe_account=user.account_id
+    )
+    subscription = stripe.Subscription.create(
+        customer=customer.id,
+        items=[
+            {"plan": user.plan_id},
+        ],
+        application_fee_percent=10,
+        stripe_account=user.account_id
+    )
+    return "Thank you for paying ${}".format(amount/100)
+
+
+@app.route('/dashboard', methods=['GET', 'POST'])
 @login_required
 def dashboard():
+    error = None
     # Check the user is at the correct stage
     if current_user.stage != 'dashboard':
         # Render function based on the stage
         return redirect(url_for(current_user.stage))
-    # Build the express dashboard link
-    # (generate the link on demand when the user intends to visit the dashboard)
-    account = stripe.Account.retrieve(current_user.account_id)
-    response = account.login_links.create()
-    link = response['url']
-    return 'Email: {}. You made it to our dashboard!'.format(current_user.email)
+    if request.method == 'POST':
+        # Build the express dashboard link
+        # (generate the link on demand when the user intends to visit the dashboard)
+        account = stripe.Account.retrieve(current_user.account_id)
+        response = account.login_links.create()
+        link = response['url']
+        return redirect(link)
+    return render_template('dashboard.html', error=error)
 
 
 if __name__ == '__main__':

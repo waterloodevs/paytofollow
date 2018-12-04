@@ -6,14 +6,14 @@
   </head>
   <body>
     <div class="container">
-      <h1>Hi, {{ current_user.username }}!</h1>
+      <h1>Hi, {{ current_user.email }}!</h1>
       <h1>We use Stripe to make sure you get paid on time and keep your personal and bank details secure.</h1>
       <br>
       <form action="" method="post">
         <input class="btn btn-default" type="submit" value="Setup Payments">
       </form>
       {% if error %}
-        <p class="error"><strong>Error:</strong> {{ error }}
+      <p class="error"><strong>Error:</strong> {{ error }}</p>
       {% endif %}
     </div>
   </body>
