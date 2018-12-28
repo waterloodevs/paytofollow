@@ -20,30 +20,14 @@
     </nav>
     <div class="row">
         <div class="col-sm-12 text-center">
-            <h2 class="text-center subheading">Connect your digital account</h2>
-            <p class="text-center">Build a subscription for one of your digital accounts.</p>
+            <h2 class="text-center subheading">Let's get to know you</h2>
+            <p class="text-center">Make your information is all correct.</p>
         </div>
     </div>
-
-
-    <form action="" method="post">
-        <input id="instagram" name="instagram" type="checkbox">
-        <label class="checkbox" for="instagram"></label>
-        <input id="twitter" name="twitter" type="checkbox">
-        <label class="checkbox" for="twitter"></label>
-        <input id="snapchat" name="snapchat" type="checkbox">
-        <label class="checkbox" for="snapchat"></label>
-        <input class="btn btn-default" type="submit" value="Next">
-    </form>
-
-
-
     <h1>Hi, {{ current_user.email }}!</h1>
     <h1>Connect your digital account</h1>
     <br>
     <form action="" method="post">
-        <input type="text" placeholder="Your Twitter Handle" name="twitter_handle" value="{{
-          request.form.twitter_handle }}">
         <input class="btn btn-default" type="submit" value="Next">
     </form>
     {% if error %}
@@ -51,7 +35,7 @@
     {% endif %}
 </div>
 <div class="progress rounded-0 fixed-bottom">
-    <div class="progress-bar" role="progressbar" style="width: 33.33%"></div>
+    <div class="progress-bar" role="progressbar" style="width: 16.66%"></div>
 </div>
 
 <!--Bootstrap core JavaScript-->

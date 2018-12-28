@@ -166,9 +166,16 @@ def load_user(email):
 
 
 @app.route('/')
-def root():
+def index():
+    button_text = 'Sign In'
     # Check if the user is already logged in and take it to its stage
-    return "Welcome to my project!"
+    if current_user.is_authenticated:
+        # Change button text based on the stage
+        if current_user.stage == 'dashboard':
+            button_text = 'Dashboard ->'
+        else:
+            button_text = 'Finish Setup ->'
+    return render_template('index.html', button_text=button_text)
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -207,18 +214,40 @@ def signup():
         user = User(email)
         user.password = password
         # Update the stage to digital account
-        user.stage = 'digital_account'
+        user.stage = 'personal_details'
         user.commit()
         login_user(user)
-        return redirect(url_for('digital_account'))
+        return redirect(url_for('personal_details'))
     return render_template('signup.html', error=error)
+
+
+@app.route("/forgot", methods=['GET', 'POST'])
+def forgot():
+    error = None
+    return render_template('forgot.html', error=error)
 
 
 @app.route("/logout", methods=['POST'])
 @login_required
 def logout():
     logout_user()
-    return redirect(url_for('root'))
+    return redirect(url_for('index'))
+
+
+@app.route('/personal_details', methods=['GET', 'POST'])
+@login_required
+def personal_details():
+    # Check the user is at the correct stage
+    if current_user.stage != 'personal_details':
+        # Render function based on the stage
+        return redirect(url_for(current_user.stage))
+    error = None
+    if request.method == 'POST':
+        # Update the user's stage to digital account
+        current_user.stage = 'digital_account'
+        current_user.commit()
+        return redirect(url_for('digital_account'))
+    return render_template('personal_details.html', error=error)
 
 
 @app.route('/digital_account', methods=['GET', 'POST'])
@@ -230,13 +259,19 @@ def digital_account():
         return redirect(url_for(current_user.stage))
     error = None
     if request.method == 'POST':
-        twitter_handle = request.form['twitter_handle']
-        # Save the user's digital account information
-        current_user.twitter_handle = twitter_handle
-        # Update the user's stage to express account
-        current_user.stage = 'express_account'
-        current_user.commit()
-        return redirect(url_for('express_account'))
+        instagram = request.form.get('instagram', False)
+        twitter = request.form.get('twitter', False)
+        snapchat = request.form.get('snapchat', False)
+        if not (instagram and twitter and snapchat):
+            error = 'Please select a digital account'
+        else:
+            twitter_handle = request.form['twitter_handle']
+            # Save the user's digital account information
+            current_user.twitter_handle = twitter_handle
+            # Update the user's stage to express account
+            current_user.stage = 'express_account'
+            current_user.commit()
+            return redirect(url_for('express_account'))
     return render_template('digital_account.html', error=error)
 
 
